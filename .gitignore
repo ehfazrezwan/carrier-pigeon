@@ -41,6 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# test coverage
+/coverage/
+
 # sqlite local data
 /data/
 *.db
