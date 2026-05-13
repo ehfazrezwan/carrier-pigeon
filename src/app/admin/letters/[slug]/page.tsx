@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
-import type { Letter, Reply } from "@/lib/types";
+import { getDB } from "@/lib/db";
 import CopyLink from "./CopyLink";
 
 export default async function LetterDetailPage({
@@ -13,21 +12,11 @@ export default async function LetterDetailPage({
   await requireAuth();
   const { slug } = await params;
 
-  const { data: letter, error } = await supabase
-    .from("letters")
-    .select("*")
-    .eq("slug", slug)
-    .single<Letter>();
+  const db = await getDB();
+  const letter = await db.getLetterBySlug(slug);
+  if (!letter) notFound();
 
-  if (error || !letter) notFound();
-
-  const { data: replies } = await supabase
-    .from("replies")
-    .select("*")
-    .eq("letter_id", letter.id)
-    .order("created_at", { ascending: false });
-
-  const list = (replies || []) as Reply[];
+  const list = await db.getRepliesForLetter(letter.id);
 
   return (
     <div className="admin-page">

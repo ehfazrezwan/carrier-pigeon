@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getDB } from "@/lib/db";
 import { isAuthed } from "@/lib/auth";
 
 export async function GET(
@@ -6,25 +6,15 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const { data: letter, error } = await supabase
-    .from("letters")
-    .select("*")
-    .eq("slug", slug)
-    .single();
-
-  if (error || !letter) {
+  const db = await getDB();
+  const letter = await db.getLetterBySlug(slug);
+  if (!letter) {
     return Response.json({ error: "Letter not found" }, { status: 404 });
   }
 
-  // Admins also get replies
   if (await isAuthed()) {
-    const { data: replies } = await supabase
-      .from("replies")
-      .select("*")
-      .eq("letter_id", letter.id)
-      .order("created_at", { ascending: false });
-    return Response.json({ letter, replies: replies || [] });
+    const replies = await db.getRepliesForLetter(letter.id);
+    return Response.json({ letter, replies });
   }
-
   return Response.json({ letter });
 }

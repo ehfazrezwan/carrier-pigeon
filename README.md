@@ -22,7 +22,7 @@ Built with Next.js, GSAP animations, Web Audio API for retro sound effects, and 
 
 - [Next.js 16](https://nextjs.org/) (App Router)
 - [GSAP](https://gsap.com/) for animation
-- [Supabase](https://supabase.com/) for storage
+- **Pluggable storage** — [Supabase](https://supabase.com/) or local [SQLite](https://www.sqlite.org/)
 - Web Audio API for sounds — no audio files, all synthesized
 - Press Start 2P + VT323 fonts via `next/font/google`
 - Pure CSS, no Tailwind
@@ -34,13 +34,25 @@ git clone https://github.com/YOUR-USER/carrier-pigeon.git
 cd carrier-pigeon
 npm install
 cp .env.example .env.local
-# edit .env.local with your Supabase + auth credentials
+# edit .env.local — at minimum set ADMIN_PASSWORD and SESSION_SECRET
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/admin` for the password gate.
 
-### Supabase tables
+## Storage
+
+The app auto-detects which database driver to use based on environment variables, and you can also force one via `DB_DRIVER=supabase|sqlite`.
+
+### Option A: SQLite (default — zero setup)
+
+If you don't set `SUPABASE_URL`, the app falls back to a local SQLite file. The schema is created automatically on first run. Set `SQLITE_PATH` if you want a custom location; otherwise it defaults to `./data/carrier-pigeon.db`.
+
+**Caveat:** SQLite needs a writable, persistent filesystem. Great for self-hosting on a VPS / Docker / your laptop. **Not suitable for Vercel** since serverless functions have no persistent disk between invocations.
+
+### Option B: Supabase (recommended for Vercel)
+
+Create a project at [supabase.com](https://supabase.com), then run this SQL in the SQL editor:
 
 ```sql
 create table letters (
@@ -65,14 +77,18 @@ create index idx_letters_slug on letters(slug);
 create index idx_replies_letter_id on replies(letter_id);
 ```
 
+Then set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env.local`. The app will pick this up automatically.
+
 ### Environment variables
 
-| Variable | Description |
-|---|---|
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Your project's anon key |
-| `ADMIN_PASSWORD` | The shared secret you'll type to access `/admin` |
-| `SESSION_SECRET` | Random token used as the cookie value. Generate with `openssl rand -hex 32` |
+| Variable | Required | Description |
+|---|---|---|
+| `ADMIN_PASSWORD` | yes | The shared secret you'll type to access `/admin` |
+| `SESSION_SECRET` | yes | Random token used as the cookie value. Generate with `openssl rand -hex 32` |
+| `SUPABASE_URL` | for Supabase | Your Supabase project URL |
+| `SUPABASE_ANON_KEY` | for Supabase | Your project's anon key |
+| `SQLITE_PATH` | optional | Path to the SQLite file. Default: `./data/carrier-pigeon.db` |
+| `DB_DRIVER` | optional | Force a specific driver: `supabase` or `sqlite` |
 
 ## Routes
 
@@ -96,13 +112,19 @@ Sounds are synthesized in real time:
 - **Ticks** for typewriter clicks: square wave, ~760 Hz with random detune, 40 ms decay
 - **Coos** when the pigeon lands: sine wave, pitch sweep from 380 → 310 → 360 Hz over 320 ms
 
-## Deploying to Vercel
+## Deploying
+
+### Vercel (Supabase only)
 
 ```bash
 npx vercel
 ```
 
-Set the same environment variables in the Vercel dashboard, and you're live.
+Set `ADMIN_PASSWORD`, `SESSION_SECRET`, `SUPABASE_URL`, and `SUPABASE_ANON_KEY` in the Vercel dashboard.
+
+### Self-hosting (SQLite or Supabase)
+
+Any platform with a writable filesystem works — a VPS, Fly.io, Railway, a Docker container, or just `npm start` on a server. For SQLite, make sure `SQLITE_PATH` points to a location on a persistent volume.
 
 ## Credits
 

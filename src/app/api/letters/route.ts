@@ -1,32 +1,14 @@
-import { supabase } from "@/lib/supabase";
 import { isAuthed } from "@/lib/auth";
+import { getDB } from "@/lib/db";
 import { generateSlug, slugify, SLUG_PATTERN } from "@/lib/slugs";
 
 export async function GET() {
   if (!(await isAuthed())) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const { data: letters, error } = await supabase
-    .from("letters")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-
-  const { data: replyCounts } = await supabase
-    .from("replies")
-    .select("letter_id");
-
-  const counts: Record<string, number> = {};
-  (replyCounts || []).forEach((r: { letter_id: string }) => {
-    counts[r.letter_id] = (counts[r.letter_id] || 0) + 1;
-  });
-
-  const withCounts = (letters || []).map((l) => ({
-    ...l,
-    reply_count: counts[l.id] || 0,
-  }));
-
-  return Response.json({ letters: withCounts });
+  const db = await getDB();
+  const letters = await db.listLettersWithReplyCounts();
+  return Response.json({ letters });
 }
 
 export async function POST(req: Request) {
@@ -37,8 +19,15 @@ export async function POST(req: Request) {
   if (!dialogue || !body) {
     return Response.json({ error: "Dialogue and body required" }, { status: 400 });
   }
+  const db = await getDB();
+  const baseInput = {
+    dialogue,
+    body,
+    theme: theme || "dusk",
+    sender_name: sender_name || "The Carrier",
+  };
 
-  // If the admin supplied a slug, validate it and use it directly (no retry).
+  // Custom slug path.
   if (rawSlug && typeof rawSlug === "string" && rawSlug.trim()) {
     const slug = slugify(rawSlug);
     if (!SLUG_PATTERN.test(slug)) {
@@ -47,43 +36,23 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    const { data, error } = await supabase
-      .from("letters")
-      .insert({
-        slug,
-        dialogue,
-        body,
-        theme: theme || "dusk",
-        sender_name: sender_name || "The Carrier",
-      })
-      .select()
-      .single();
-    if (error) {
-      if (error.message.includes("duplicate")) {
+    const result = await db.createLetter({ slug, ...baseInput });
+    if (!result.ok) {
+      if (result.reason === "duplicate-slug") {
         return Response.json({ error: "That slug is already taken." }, { status: 409 });
       }
-      return Response.json({ error: error.message }, { status: 500 });
+      return Response.json({ error: result.message || "Could not save letter." }, { status: 500 });
     }
-    return Response.json({ letter: data });
+    return Response.json({ letter: result.letter });
   }
 
-  // Otherwise auto-generate, retrying on collision.
+  // Auto-slug path with retry on collision.
   for (let i = 0; i < 5; i++) {
     const slug = generateSlug();
-    const { data, error } = await supabase
-      .from("letters")
-      .insert({
-        slug,
-        dialogue,
-        body,
-        theme: theme || "dusk",
-        sender_name: sender_name || "The Carrier",
-      })
-      .select()
-      .single();
-    if (!error && data) return Response.json({ letter: data });
-    if (error && !error.message.includes("duplicate")) {
-      return Response.json({ error: error.message }, { status: 500 });
+    const result = await db.createLetter({ slug, ...baseInput });
+    if (result.ok) return Response.json({ letter: result.letter });
+    if (result.reason !== "duplicate-slug") {
+      return Response.json({ error: result.message || "Could not save letter." }, { status: 500 });
     }
   }
   return Response.json({ error: "Could not generate unique slug" }, { status: 500 });

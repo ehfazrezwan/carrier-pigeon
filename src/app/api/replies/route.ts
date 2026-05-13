@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getDB } from "@/lib/db";
 
 export async function POST(req: Request) {
   const { slug, body, reader_name } = await req.json();
@@ -9,25 +9,16 @@ export async function POST(req: Request) {
     return Response.json({ error: "Reply too long" }, { status: 400 });
   }
 
-  const { data: letter, error: letterErr } = await supabase
-    .from("letters")
-    .select("id")
-    .eq("slug", slug)
-    .single();
-  if (letterErr || !letter) {
+  const db = await getDB();
+  const letter = await db.getLetterBySlug(slug);
+  if (!letter) {
     return Response.json({ error: "Letter not found" }, { status: 404 });
   }
 
-  const { data, error } = await supabase
-    .from("replies")
-    .insert({
-      letter_id: letter.id,
-      body,
-      reader_name: reader_name || "Anonymous",
-    })
-    .select()
-    .single();
-
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ reply: data });
+  const reply = await db.createReply({
+    letter_id: letter.id,
+    body,
+    reader_name: reader_name || "Anonymous",
+  });
+  return Response.json({ reply });
 }

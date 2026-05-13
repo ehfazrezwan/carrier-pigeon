@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import type { Letter } from "@/lib/types";
+import { getDB } from "@/lib/db";
 import CarrierPigeon from "@/app/CarrierPigeon";
 
 export default async function LetterPage({
@@ -9,13 +8,9 @@ export default async function LetterPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { data: letter, error } = await supabase
-    .from("letters")
-    .select("*")
-    .eq("slug", slug)
-    .single<Letter>();
-
-  if (error || !letter) notFound();
+  const db = await getDB();
+  const letter = await db.getLetterBySlug(slug);
+  if (!letter) notFound();
 
   return (
     <CarrierPigeon
