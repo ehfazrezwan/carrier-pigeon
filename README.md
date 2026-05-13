@@ -1,5 +1,9 @@
 # Carrier Pigeon
 
+<p align="center">
+  <img src="./assets/pigeon-arrival.gif" alt="A pixel-art pigeon flies in from the upper left, curves down to a tree branch at dusk, and starts speaking through a typewriter speech bubble" width="640" />
+</p>
+
 A pixel-art letter delivery app. The admin composes a letter, gets a shareable URL, and a charming pigeon flies in to deliver it to the recipient — who can read it, write back, and watch the pigeon fly off into the sunset.
 
 Built with Next.js, GSAP animations, Web Audio API for retro sound effects, and Supabase for storage.
